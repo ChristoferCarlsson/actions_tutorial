@@ -12,14 +12,28 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    environment: DEVELOPMENT   # 👈 this line tells GitHub to load secrets from that environment
+    environment: DEVELOPMENT
+
     steps:
-      - name: Send message to Discord
+      - name: Send commit info to Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          COMMIT_AUTHOR: ${{ github.actor }}
+          COMMIT_NAME: ${{ github.event.head_commit.message }}
+          COMMIT_DESC: ${{ github.event.head_commit.description }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
-          MESSAGE="A new commit was pushed to the main branch by $GITHUB_ACTOR"
+          # Fallback for when description is empty
+          DESC="${COMMIT_DESC:-No description provided.}"
+
+          MESSAGE="New commit pushed by ${COMMIT_AUTHOR}\n\n\
+Commit-Name: ${COMMIT_NAME}\n\
+Description: ${DESC}\n\n\
+Commit: [${COMMIT_SHA}](${COMMIT_URL})"
+
           PAYLOAD="{\"content\": \"$MESSAGE\"}"
+
           curl -H "Content-Type: application/json" \
                -X POST \
                -d "$PAYLOAD" \
