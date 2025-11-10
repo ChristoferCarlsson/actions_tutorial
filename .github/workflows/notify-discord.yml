@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_run:
-    workflows: ["Build", "Test"]
-    types:
-      - completed
 
 jobs:
   notify:
@@ -23,27 +19,29 @@ jobs:
           COMMIT_URL: ${{ github.event.head_commit.url }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          # Split message: first line = subject, rest = description
-          COMMIT_NAME=$(echo "$COMMIT_MESSAGE" | head -n 1)
-          COMMIT_DESC=$(echo "$COMMIT_MESSAGE" | tail -n +2 | sed '/^$/d')
-          if [ -z "$COMMIT_DESC" ]; then
-            COMMIT_DESC="No description provided."
-          fi
+          # Build the Discord payload in Python to avoid YAML/JSON escaping issues
+          PAYLOAD=$(python3 - <<'PY'
+import os, json
 
-          # Build Discord message safely
-          MESSAGE=$(cat <<EOF
-New commit pushed by ${COMMIT_AUTHOR}
+author = os.getenv("COMMIT_AUTHOR", "")
+message = os.getenv("COMMIT_MESSAGE", "") or ""
+url = os.getenv("COMMIT_URL", "")
+sha = os.getenv("COMMIT_SHA", "")[:7]
 
-Commit-Name: ${COMMIT_NAME}
-Description: ${COMMIT_DESC}
+lines = message.splitlines()
+subject = lines[0] if lines else ""
+desc = "\n".join([l for l in lines[1:] if l.strip()]) or "No description provided."
 
-Commit: [${COMMIT_SHA}](${COMMIT_URL})
-EOF
+content = (
+    f"New commit pushed by {author}\n\n"
+    f"Commit-Name: {subject}\n"
+    f"Description: {desc}\n\n"
+    f"Commit: [{sha}]({url})"
 )
 
-          # Escape JSON properly
-          ESCAPED_MESSAGE=$(echo "$MESSAGE" | jq -Rs .)
-          PAYLOAD="{\"content\": ${ESCAPED_MESSAGE}}"
+print(json.dumps({"content": content}))
+PY
+)
 
           curl -H "Content-Type: application/json" \
                -X POST \
