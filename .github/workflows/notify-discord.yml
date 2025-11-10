@@ -4,45 +4,22 @@ on:
   push:
     branches:
       - main
+  workflow_run:
+    workflows: ["Build", "Test"]
+    types:
+      - completed
 
 jobs:
   notify:
     runs-on: ubuntu-latest
-    environment: DEVELOPMENT
-
+    environment: DEVELOPMENT   # 👈 this line tells GitHub to load secrets from that environment
     steps:
-      - name: Send commit info to Discord
+      - name: Send message to Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          COMMIT_AUTHOR: ${{ github.actor }}
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          COMMIT_URL: ${{ github.event.head_commit.url }}
-          COMMIT_SHA: ${{ github.sha }}
         run: |
-          # Build the Discord payload in Python to avoid YAML/JSON escaping issues
-          PAYLOAD=$(python3 - <<'PY'
-import os, json
-
-author = os.getenv("COMMIT_AUTHOR", "")
-message = os.getenv("COMMIT_MESSAGE", "") or ""
-url = os.getenv("COMMIT_URL", "")
-sha = os.getenv("COMMIT_SHA", "")[:7]
-
-lines = message.splitlines()
-subject = lines[0] if lines else ""
-desc = "\n".join([l for l in lines[1:] if l.strip()]) or "No description provided."
-
-content = (
-    f"New commit pushed by {author}\n\n"
-    f"Commit-Name: {subject}\n"
-    f"Description: {desc}\n\n"
-    f"Commit: [{sha}]({url})"
-)
-
-print(json.dumps({"content": content}))
-PY
-)
-
+          MESSAGE="A new commit was pushed to the main branch by $GITHUB_ACTOR"
+          PAYLOAD="{\"content\": \"$MESSAGE\"}"
           curl -H "Content-Type: application/json" \
                -X POST \
                -d "$PAYLOAD" \
