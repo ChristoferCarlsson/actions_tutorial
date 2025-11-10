@@ -1,0 +1,25 @@
+name: Notify Discord
+
+on:
+  push:
+    branches:
+      - main
+  workflow_run:
+    workflows: ["Build", "Test"]
+    types:
+      - completed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send message to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          MESSAGE="A new commit was pushed to the main branch by $GITHUB_ACTOR"
+          PAYLOAD="{\"content\": \"$MESSAGE\"}"
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "$PAYLOAD" \
+               "$DISCORD_WEBHOOK_URL"
