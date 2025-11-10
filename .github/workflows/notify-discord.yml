@@ -19,20 +19,31 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           COMMIT_AUTHOR: ${{ github.actor }}
-          COMMIT_NAME: ${{ github.event.head_commit.message }}
-          COMMIT_DESC: ${{ github.event.head_commit.description }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           COMMIT_URL: ${{ github.event.head_commit.url }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          # Fallback for when description is empty
-          DESC="${COMMIT_DESC:-No description provided.}"
+          # Split message: first line = subject, rest = description
+          COMMIT_NAME=$(echo "$COMMIT_MESSAGE" | head -n 1)
+          COMMIT_DESC=$(echo "$COMMIT_MESSAGE" | tail -n +2 | sed '/^$/d')
+          if [ -z "$COMMIT_DESC" ]; then
+            COMMIT_DESC="No description provided."
+          fi
 
-          MESSAGE="New commit pushed by ${COMMIT_AUTHOR}\n\n\
-Commit-Name: ${COMMIT_NAME}\n\
-Description: ${DESC}\n\n\
-Commit: [${COMMIT_SHA}](${COMMIT_URL})"
+          # Build Discord message safely
+          MESSAGE=$(cat <<EOF
+New commit pushed by ${COMMIT_AUTHOR}
 
-          PAYLOAD="{\"content\": \"$MESSAGE\"}"
+Commit-Name: ${COMMIT_NAME}
+Description: ${COMMIT_DESC}
+
+Commit: [${COMMIT_SHA}](${COMMIT_URL})
+EOF
+)
+
+          # Escape JSON properly
+          ESCAPED_MESSAGE=$(echo "$MESSAGE" | jq -Rs .)
+          PAYLOAD="{\"content\": ${ESCAPED_MESSAGE}}"
 
           curl -H "Content-Type: application/json" \
                -X POST \
